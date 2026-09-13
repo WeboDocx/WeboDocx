@@ -5,6 +5,7 @@ import { ToastMessage, TaskManager, BatchItem, NavView } from '../types';
 import { BatchProcessingQueue } from './BatchProcessingQueue';
 import {
   renderPdfPageToImage,
+  renderAllPdfPagesToImages,
   getPdfInfo,
   extractPdfText,
   convertPdfToDocx,
@@ -93,6 +94,7 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
   const [pdfToImgPages, setPdfToImgPages] = useState<{ pageNum: number; dataUrl: string; width: number; height: number }[]>([]);
   const [pdfToImgTotalPages, setPdfToImgTotalPages] = useState<number>(0);
   const [isPdfToImgProcessing, setIsPdfToImgProcessing] = useState<boolean>(false);
+  const [previewImgModal, setPreviewImgModal] = useState<{ pageNum: number; dataUrl: string; width: number; height: number } | null>(null);
 
   // ==========================================
   // TAB 3: PDF TO WORD (.DOCX) STATE
@@ -371,10 +373,11 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
   // ==========================================
   // TAB 2: PDF TO IMAGE (JPG / PNG) HANDLERS
   // ==========================================
-  const handlePdfToImgFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processPdfToImgFile = async (
+    file: File,
+    format: 'image/jpeg' | 'image/png' = pdfToImgFormat,
+    scale: number = pdfToImgScale
+  ) => {
     setPdfToImgFile(file);
     setPdfToImgPages([]);
     setIsPdfToImgProcessing(true);
@@ -382,39 +385,36 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const info = await getPdfInfo(arrayBuffer);
-      setPdfToImgTotalPages(info.numPages);
+      taskManager?.updateProgress(20, 'Rendering high-resolution image pages...');
 
-      const pagesList: { pageNum: number; dataUrl: string; width: number; height: number }[] = [];
+      const pagesList = await renderAllPdfPagesToImages(
+        arrayBuffer,
+        format,
+        scale,
+        (current, total) => {
+          const progress = Math.round(20 + (current / total) * 75);
+          taskManager?.updateProgress(
+            progress,
+            `Rendering page ${current} of ${total} (${format === 'image/jpeg' ? 'JPG' : 'PNG'})...`
+          );
+        }
+      );
 
-      for (let i = 1; i <= info.numPages; i++) {
-        taskManager?.updateProgress(
-          Math.round((i / info.numPages) * 90),
-          `Rendering Page ${i} of ${info.numPages} to high-res ${pdfToImgFormat === 'image/jpeg' ? 'JPG' : 'PNG'}...`
-        );
-        const rendered = await renderPdfPageToImage(arrayBuffer, i, pdfToImgFormat, pdfToImgScale);
-        pagesList.push({
-          pageNum: i,
-          dataUrl: rendered.dataUrl,
-          width: rendered.width,
-          height: rendered.height,
-        });
-      }
-
+      setPdfToImgTotalPages(pagesList.length);
       setPdfToImgPages(pagesList);
       taskManager?.completeTask(`Rendered ${pagesList.length} pages ready for download`, 400);
 
       onAddToast({
         title: 'PDF Converted to Images',
-        description: `Rendered ${pagesList.length} page(s) in high resolution.`,
+        description: `Successfully rendered ${pagesList.length} page(s) in high resolution.`,
         type: 'success',
       });
     } catch (err: any) {
-      console.error(err);
+      console.error('PDF to Image conversion error:', err);
       taskManager?.cancelTask();
       onAddToast({
         title: 'PDF Rendering Error',
-        description: err?.message || 'Could not parse PDF pages.',
+        description: err?.message || 'Could not parse PDF pages. Please verify the file.',
         type: 'error',
       });
     } finally {
@@ -422,18 +422,68 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
     }
   };
 
+  const handlePdfToImgFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processPdfToImgFile(file);
+  };
+
+  const handlePdfToImgFormatChange = (newFormat: 'image/jpeg' | 'image/png') => {
+    setPdfToImgFormat(newFormat);
+    if (pdfToImgFile) {
+      processPdfToImgFile(pdfToImgFile, newFormat, pdfToImgScale);
+    }
+  };
+
+  const handlePdfToImgScaleChange = (newScale: number) => {
+    setPdfToImgScale(newScale);
+    if (pdfToImgFile) {
+      processPdfToImgFile(pdfToImgFile, pdfToImgFormat, newScale);
+    }
+  };
+
   const handleDownloadSinglePdfImage = (page: { pageNum: number; dataUrl: string }) => {
     const ext = pdfToImgFormat === 'image/jpeg' ? 'jpg' : 'png';
+    const fileName = `${pdfToImgFile?.name.replace(/\.[^/.]+$/, '') || 'document'}_page_${page.pageNum}.${ext}`;
     const a = document.createElement('a');
     a.href = page.dataUrl;
-    a.download = `${pdfToImgFile?.name.replace(/\.[^/.]+$/, '') || 'document'}_page_${page.pageNum}.${ext}`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+
+    const approxKb = Math.round((page.dataUrl.length * 3) / 4 / 1024) || 50;
+    recordRecentActivity({
+      fileName,
+      category: 'pdf-img',
+      fileType: ext as any,
+      sizeKb: approxKb,
+      originalSizeKb: pdfToImgFile ? Math.round(pdfToImgFile.size / 1024) : undefined,
+      details: `Extracted Page ${page.pageNum} as high-res ${ext.toUpperCase()}`,
+      dataUrl: page.dataUrl,
+    });
+
+    onAddToast({
+      title: 'Image Downloaded',
+      description: `Saved Page ${page.pageNum} as ${ext.toUpperCase()}`,
+      type: 'success',
+    });
   };
 
   const handleDownloadAllPdfImagesZip = async () => {
-    if (pdfToImgPages.length === 0) return;
+    if (pdfToImgPages.length === 0) {
+      if (pdfToImgFile) {
+        await processPdfToImgFile(pdfToImgFile);
+      } else {
+        onAddToast({
+          title: 'No PDF Document Loaded',
+          description: 'Please select a PDF document first.',
+          type: 'warning',
+        });
+      }
+      return;
+    }
+
     taskManager?.startTask('Packaging Images to ZIP Archive', 40, 'Compressing pages into ZIP...');
     const zip = new JSZip();
     const ext = pdfToImgFormat === 'image/jpeg' ? 'jpg' : 'png';
@@ -446,13 +496,24 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(zipBlob);
+    const fileName = `${baseName}_All_Pages_${ext.toUpperCase()}.zip`;
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${baseName}_All_Pages_${ext.toUpperCase()}.zip`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    const sizeKb = Math.round(zipBlob.size / 1024) || 1;
+    recordRecentActivity({
+      fileName,
+      category: 'pdf-img',
+      fileType: 'zip',
+      sizeKb,
+      originalSizeKb: pdfToImgFile ? Math.round(pdfToImgFile.size / 1024) : undefined,
+      details: `Exported ${pdfToImgPages.length} image pages as ${ext.toUpperCase()} ZIP archive`,
+    });
 
     taskManager?.completeTask('ZIP downloaded successfully!', 400);
     onAddToast({
@@ -1724,32 +1785,53 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Left Controls */}
           <div className="lg:col-span-4 flex flex-col gap-4">
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-[#eaedff] flex flex-col gap-4">
-              <h3 className="text-[16px] font-bold text-[#131b2e] flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#00236f] text-[20px]">
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-[#eaedff] dark:border-slate-800 flex flex-col gap-4">
+              <h3 className="text-[16px] font-bold text-[#131b2e] dark:text-slate-100 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#00236f] dark:text-indigo-400 text-[20px]">
                   photo_size_select_actual
                 </span>
                 <span>PDF to Image Settings</span>
               </h3>
 
+              {/* Upload Dropzone with Drag & Drop */}
               <label
                 htmlFor="pdf-to-img-input"
-                className="flex flex-col items-center justify-center p-6 bg-[#f2f3ff] hover:bg-[#eaedff] rounded-xl cursor-pointer transition-all text-center border-2 border-dashed border-[#dae2fd] hover:border-[#00236f]"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
+                    processPdfToImgFile(file);
+                  } else {
+                    onAddToast({
+                      title: 'Invalid File',
+                      description: 'Please drop a valid PDF document.',
+                      type: 'warning',
+                    });
+                  }
+                }}
+                className="flex flex-col items-center justify-center p-6 bg-[#f2f3ff] dark:bg-slate-800/60 hover:bg-[#eaedff] dark:hover:bg-slate-800 rounded-xl cursor-pointer transition-all text-center border-2 border-dashed border-[#dae2fd] dark:border-slate-700 hover:border-[#00236f] dark:hover:border-indigo-400"
               >
-                <span className="material-symbols-outlined text-[32px] text-[#00236f] mb-1">
-                  upload_file
+                <span className="material-symbols-outlined text-[34px] text-[#00236f] dark:text-indigo-400 mb-1.5">
+                  {pdfToImgFile ? 'picture_as_pdf' : 'upload_file'}
                 </span>
-                <span className="text-[13px] font-bold text-[#00236f]">
-                  {pdfToImgFile ? pdfToImgFile.name : 'Select PDF to Convert'}
+                <span className="text-[13px] font-bold text-[#00236f] dark:text-indigo-300 max-w-[240px] truncate">
+                  {pdfToImgFile ? pdfToImgFile.name : 'Select or Drop PDF File'}
                 </span>
-                <span className="text-[11px] text-[#757682] mt-0.5">
-                  Multi-page documents supported
+                <span className="text-[11px] text-[#757682] dark:text-slate-400 mt-1">
+                  {pdfToImgFile
+                    ? `${(pdfToImgFile.size / (1024 * 1024)).toFixed(2)} MB • ${pdfToImgTotalPages || pdfToImgPages.length || '1+'} page(s)`
+                    : 'High-res JPG / PNG conversion for all pages'}
                 </span>
                 <input
                   id="pdf-to-img-input"
                   ref={pdfToImgInputRef}
                   type="file"
-                  accept=".pdf"
+                  accept=".pdf,application/pdf"
                   onChange={handlePdfToImgFileChange}
                   className="hidden"
                 />
@@ -1757,159 +1839,274 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
 
               {/* Format Switcher */}
               <div>
-                <label className="text-[12px] font-bold text-[#131b2e] uppercase tracking-wider block mb-1.5">
-                  Output Format:
+                <label className="text-[12px] font-bold text-[#131b2e] dark:text-slate-200 uppercase tracking-wider block mb-1.5">
+                  Output Image Format:
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setPdfToImgFormat('image/jpeg')}
-                    className={`py-2 px-3 rounded-lg text-[13px] font-bold transition-all cursor-pointer border ${
+                    onClick={() => handlePdfToImgFormatChange('image/jpeg')}
+                    className={`py-2 px-3 rounded-lg text-[13px] font-bold transition-all cursor-pointer border flex items-center justify-center gap-1.5 ${
                       pdfToImgFormat === 'image/jpeg'
-                        ? 'bg-[#00236f] text-white border-[#00236f]'
-                        : 'bg-[#f2f3ff] text-[#444651] border-[#dae2fd]'
+                        ? 'bg-[#00236f] text-white border-[#00236f] shadow-xs'
+                        : 'bg-[#f2f3ff] dark:bg-slate-800 text-[#444651] dark:text-slate-300 border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff]'
                     }`}
                   >
-                    JPG (Photo/Print)
+                    <span className="material-symbols-outlined text-[16px]">image</span>
+                    <span>JPG (Photo)</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPdfToImgFormat('image/png')}
-                    className={`py-2 px-3 rounded-lg text-[13px] font-bold transition-all cursor-pointer border ${
+                    onClick={() => handlePdfToImgFormatChange('image/png')}
+                    className={`py-2 px-3 rounded-lg text-[13px] font-bold transition-all cursor-pointer border flex items-center justify-center gap-1.5 ${
                       pdfToImgFormat === 'image/png'
-                        ? 'bg-[#00236f] text-white border-[#00236f]'
-                        : 'bg-[#f2f3ff] text-[#444651] border-[#dae2fd]'
+                        ? 'bg-[#00236f] text-white border-[#00236f] shadow-xs'
+                        : 'bg-[#f2f3ff] dark:bg-slate-800 text-[#444651] dark:text-slate-300 border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff]'
                     }`}
                   >
-                    PNG (Lossless)
+                    <span className="material-symbols-outlined text-[16px]">photo_library</span>
+                    <span>PNG (Lossless)</span>
                   </button>
                 </div>
               </div>
 
               {/* Resolution Scale */}
               <div>
-                <label className="text-[12px] font-bold text-[#131b2e] uppercase tracking-wider block mb-1.5">
-                  Resolution / Quality:
+                <label className="text-[12px] font-bold text-[#131b2e] dark:text-slate-200 uppercase tracking-wider block mb-1.5">
+                  Resolution / Quality (DPI):
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setPdfToImgScale(1.5)}
+                    onClick={() => handlePdfToImgScaleChange(1.5)}
                     className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
                       pdfToImgScale === 1.5
                         ? 'bg-[#00236f] text-white border-[#00236f]'
-                        : 'bg-[#f2f3ff] text-[#444651] border-[#dae2fd]'
+                        : 'bg-[#f2f3ff] dark:bg-slate-800 text-[#444651] dark:text-slate-300 border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff]'
                     }`}
                   >
-                    Standard (150 DPI)
+                    150 DPI (Fast)
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPdfToImgScale(2.0)}
+                    onClick={() => handlePdfToImgScaleChange(2.0)}
                     className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
                       pdfToImgScale === 2.0
                         ? 'bg-[#00236f] text-white border-[#00236f]'
-                        : 'bg-[#f2f3ff] text-[#444651] border-[#dae2fd]'
+                        : 'bg-[#f2f3ff] dark:bg-slate-800 text-[#444651] dark:text-slate-300 border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff]'
                     }`}
                   >
-                    High (300 DPI)
+                    300 DPI (High)
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPdfToImgScale(3.0)}
+                    onClick={() => handlePdfToImgScaleChange(3.0)}
                     className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
                       pdfToImgScale === 3.0
                         ? 'bg-[#00236f] text-white border-[#00236f]'
-                        : 'bg-[#f2f3ff] text-[#444651] border-[#dae2fd]'
+                        : 'bg-[#f2f3ff] dark:bg-slate-800 text-[#444651] dark:text-slate-300 border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff]'
                     }`}
                   >
-                    Ultra (600 DPI)
+                    600 DPI (Ultra)
                   </button>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              {pdfToImgPages.length > 0 && (
-                <div className="flex flex-col gap-2 pt-2 border-t border-[#eaedff]">
+              {/* Action Buttons (Always Visible & State Responsive) */}
+              <div className="flex flex-col gap-2.5 pt-3 border-t border-[#eaedff] dark:border-slate-800">
+                {isPdfToImgProcessing ? (
                   <button
                     type="button"
-                    onClick={handleDownloadAllPdfImagesZip}
-                    className="w-full py-2.5 px-4 rounded-xl bg-[#004a32] hover:bg-[#003120] text-white font-bold text-[13px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                    disabled
+                    className="w-full py-3 px-4 rounded-xl bg-[#00236f]/70 text-white font-bold text-[13px] flex items-center justify-center gap-2 cursor-wait"
                   >
-                    <span className="material-symbols-outlined text-[18px]">
-                      folder_zip
-                    </span>
-                    <span>Download All ({pdfToImgPages.length} Pages) as ZIP</span>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Converting PDF to {pdfToImgFormat === 'image/jpeg' ? 'JPG' : 'PNG'}...</span>
                   </button>
-                </div>
-              )}
+                ) : pdfToImgPages.length > 0 ? (
+                  <>
+                    {/* Primary Button */}
+                    {pdfToImgPages.length === 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadSinglePdfImage(pdfToImgPages[0])}
+                        className="w-full py-3 px-4 rounded-xl bg-[#004a32] hover:bg-[#003624] text-white font-bold text-[13px] transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">download</span>
+                        <span>Download Image ({pdfToImgFormat === 'image/jpeg' ? 'JPG' : 'PNG'})</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleDownloadAllPdfImagesZip}
+                        className="w-full py-3 px-4 rounded-xl bg-[#004a32] hover:bg-[#003624] text-white font-bold text-[13px] transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">folder_zip</span>
+                        <span>Download All ({pdfToImgPages.length} Pages) as ZIP</span>
+                      </button>
+                    )}
+
+                    {/* Secondary Button for Multi-page */}
+                    {pdfToImgPages.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadSinglePdfImage(pdfToImgPages[0])}
+                        className="w-full py-2.5 px-4 rounded-xl bg-[#00236f] hover:bg-[#1e3a8a] text-white font-bold text-[12px] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">image</span>
+                        <span>Download Page 1 ({pdfToImgFormat === 'image/jpeg' ? 'JPG' : 'PNG'})</span>
+                      </button>
+                    )}
+
+                    {/* Re-render Button */}
+                    <button
+                      type="button"
+                      onClick={() => pdfToImgFile && processPdfToImgFile(pdfToImgFile)}
+                      className="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11.5px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">refresh</span>
+                      <span>Re-render with Current Settings</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => pdfToImgInputRef.current?.click()}
+                    className="w-full py-3 px-4 rounded-xl bg-[#00236f] hover:bg-[#1e3a8a] text-white font-bold text-[13px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                    <span>Select PDF to Convert & Download</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Right Preview Grid */}
           <div className="lg:col-span-8 flex flex-col gap-4">
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-[#eaedff] flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[16px] font-bold text-[#131b2e]">
-                  Converted Pages Preview {pdfToImgPages.length > 0 && `(${pdfToImgPages.length} Pages)`}
-                </h3>
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-[#eaedff] dark:border-slate-800 flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eaedff] dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[16px] font-bold text-[#131b2e] dark:text-slate-100">
+                    Converted Pages Preview
+                  </h3>
+                  {pdfToImgPages.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#e8ebff] dark:bg-indigo-950 text-[#00236f] dark:text-indigo-300">
+                      {pdfToImgPages.length} Page{pdfToImgPages.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
                 {pdfToImgPages.length > 0 && (
-                  <span className="text-[12px] font-mono text-[#00236f] font-bold">
-                    Format: {pdfToImgFormat === 'image/jpeg' ? 'JPG' : 'PNG'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11.5px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md font-semibold">
+                      {pdfToImgFormat === 'image/jpeg' ? 'JPG' : 'PNG'} • {pdfToImgScale * 150} DPI
+                    </span>
+                    <button
+                      type="button"
+                      onClick={
+                        pdfToImgPages.length === 1
+                          ? () => handleDownloadSinglePdfImage(pdfToImgPages[0])
+                          : handleDownloadAllPdfImagesZip
+                      }
+                      className="px-3 py-1.5 bg-[#004a32] hover:bg-[#003624] text-white text-[12px] font-bold rounded-lg transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {pdfToImgPages.length === 1 ? 'download' : 'folder_zip'}
+                      </span>
+                      <span>
+                        {pdfToImgPages.length === 1 ? 'Download JPG' : `Download All (${pdfToImgPages.length})`}
+                      </span>
+                    </button>
+                  </div>
                 )}
               </div>
 
               {isPdfToImgProcessing ? (
-                <div className="h-64 flex flex-col items-center justify-center bg-[#f8fafc] rounded-xl border border-[#dae2fd]">
-                  <div className="w-10 h-10 border-3 border-[#00236f] border-t-transparent rounded-full animate-spin mb-3"></div>
-                  <p className="text-[13px] font-semibold text-[#131b2e]">
+                <div className="h-64 flex flex-col items-center justify-center bg-[#f8fafc] dark:bg-slate-800/40 rounded-xl border border-[#dae2fd] dark:border-slate-700">
+                  <div className="w-10 h-10 border-3 border-[#00236f] dark:border-indigo-400 border-t-transparent rounded-full animate-spin mb-3"></div>
+                  <p className="text-[14px] font-semibold text-[#131b2e] dark:text-slate-200">
                     Rendering PDF pages to high-resolution images...
+                  </p>
+                  <p className="text-[12px] text-slate-500 dark:text-slate-400 mt-1">
+                    Extracting vector paths and rasterizing each page cleanly
                   </p>
                 </div>
               ) : pdfToImgPages.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto p-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-[640px] overflow-y-auto p-1">
                   {pdfToImgPages.map((page) => (
                     <div
                       key={page.pageNum}
-                      className="bg-[#f8fafc] p-3 rounded-xl border border-[#dae2fd] flex flex-col justify-between group hover:border-[#00236f] transition-all shadow-xs"
+                      className="bg-[#f8fafc] dark:bg-slate-800/70 p-3 rounded-xl border border-[#dae2fd] dark:border-slate-700 flex flex-col justify-between group hover:border-[#00236f] dark:hover:border-indigo-500 transition-all shadow-xs"
                     >
-                      <div className="h-44 bg-white rounded-lg flex items-center justify-center overflow-hidden border border-slate-200 mb-2.5">
+                      <div
+                        onClick={() => setPreviewImgModal(page)}
+                        className="h-48 bg-white dark:bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-700 mb-2.5 relative cursor-zoom-in group/img"
+                      >
                         <img
                           src={page.dataUrl}
                           alt={`Page ${page.pageNum}`}
-                          className="max-h-full max-w-full object-contain"
+                          className="max-h-full max-w-full object-contain transition-transform group-hover/img:scale-105 duration-200"
                         />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-1 text-white text-[12px] font-bold">
+                          <span className="material-symbols-outlined text-[18px]">zoom_in</span>
+                          <span>Click to Preview</span>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[12px] font-bold text-[#131b2e]">
-                          Page {page.pageNum}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadSinglePdfImage(page)}
-                          className="flex items-center gap-1 px-2.5 py-1 bg-[#00236f] hover:bg-[#1e3a8a] text-white text-[11px] font-bold rounded-md transition-colors cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">
-                            download
+                      <div className="flex flex-col gap-2 pt-1">
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span className="font-bold text-[#131b2e] dark:text-slate-200 text-[12px]">
+                            Page {page.pageNum}
                           </span>
-                          <span>Download</span>
-                        </button>
+                          <span className="font-mono">
+                            {page.width} × {page.height} px
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImgModal(page)}
+                            className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-[11px] font-semibold rounded-md transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">visibility</span>
+                            <span>View</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadSinglePdfImage(page)}
+                            className="py-1.5 px-2 bg-[#00236f] hover:bg-[#1e3a8a] text-white text-[11px] font-bold rounded-md transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">download</span>
+                            <span>{pdfToImgFormat === 'image/jpeg' ? 'JPG' : 'PNG'}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="h-64 flex flex-col items-center justify-center bg-[#f8fafc] rounded-xl border border-[#dae2fd] text-center p-6 text-[#757682]">
-                  <span className="material-symbols-outlined text-[48px] text-[#dae2fd] mb-2">
-                    image
-                  </span>
-                  <p className="text-[14px] font-medium text-[#131b2e]">
+                <div className="h-64 flex flex-col items-center justify-center bg-[#f8fafc] dark:bg-slate-800/40 rounded-xl border-2 border-dashed border-[#dae2fd] dark:border-slate-700 text-center p-6 text-[#757682] dark:text-slate-400">
+                  <div className="w-14 h-14 rounded-full bg-[#f2f3ff] dark:bg-slate-800 flex items-center justify-center text-[#00236f] dark:text-indigo-400 mb-3">
+                    <span className="material-symbols-outlined text-[28px]">
+                      photo_size_select_actual
+                    </span>
+                  </div>
+                  <h4 className="text-[15px] font-bold text-[#131b2e] dark:text-slate-200">
                     No PDF Loaded Yet
+                  </h4>
+                  <p className="text-[12.5px] max-w-sm mt-1 mb-4 leading-relaxed">
+                    Upload any PDF document on the left panel or click below to convert all pages into high-resolution JPG or PNG images.
                   </p>
-                  <p className="text-[12px] max-w-sm mt-1">
-                    Upload any PDF on the left panel to render all pages as crystal clear high-DPI JPG or PNG images.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => pdfToImgInputRef.current?.click()}
+                    className="py-2.5 px-4 rounded-xl bg-[#00236f] hover:bg-[#1e3a8a] text-white text-[13px] font-bold flex items-center gap-2 cursor-pointer shadow-sm transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      upload_file
+                    </span>
+                    <span>Select PDF Document</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -2413,6 +2610,55 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
       {/* ========================================================================= */}
       {activeTab === 'ocr' && (
         <OcrToolSection onAddToast={onAddToast} taskManager={taskManager} onNavigate={onNavigate} />
+      )}
+
+      {/* PDF to Image Page Preview Lightbox Modal */}
+      {previewImgModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setPreviewImgModal(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-2xl max-w-4xl w-full max-h-[92vh] overflow-hidden flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-[15px] text-slate-900 dark:text-slate-100">
+                  Page {previewImgModal.pageNum} Preview
+                </span>
+                <span className="text-[12px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                  {previewImgModal.width} × {previewImgModal.height} px
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadSinglePdfImage(previewImgModal)}
+                  className="px-3.5 py-1.5 rounded-lg bg-[#004a32] hover:bg-[#003624] text-white text-[12px] font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">download</span>
+                  <span>Download {pdfToImgFormat === 'image/jpeg' ? 'JPG' : 'PNG'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImgModal(null)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-pointer transition-colors"
+                  title="Close preview"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
+            </div>
+            <div className="p-4 overflow-auto flex items-center justify-center max-h-[calc(92vh-75px)] bg-slate-100/70 dark:bg-slate-950/60">
+              <img
+                src={previewImgModal.dataUrl}
+                alt={`Page ${previewImgModal.pageNum}`}
+                className="max-h-full max-w-full object-contain rounded-lg shadow-md border border-slate-200 dark:border-slate-800"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

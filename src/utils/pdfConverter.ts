@@ -26,14 +26,15 @@ export async function renderPdfPageToImage(
   format: 'image/jpeg' | 'image/png' = 'image/jpeg',
   scale: number = 2.0
 ): Promise<{ dataUrl: string; width: number; height: number }> {
-  const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+  const safeData = pdfData instanceof Uint8Array ? new Uint8Array(pdfData) : new Uint8Array(pdfData.slice(0));
+  const loadingTask = pdfjsLib.getDocument({ data: safeData });
   const pdf = await loadingTask.promise;
   const page = await pdf.getPage(pageNumber);
 
   const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
+  canvas.width = Math.floor(viewport.width);
+  canvas.height = Math.floor(viewport.height);
   const ctx = canvas.getContext('2d');
 
   if (!ctx) throw new Error('Could not get canvas 2d context');
@@ -50,14 +51,64 @@ export async function renderPdfPageToImage(
 
   await (page as any).render(renderContext).promise;
   const dataUrl = canvas.toDataURL(format, format === 'image/jpeg' ? 0.92 : undefined);
-  return { dataUrl, width: viewport.width, height: viewport.height };
+  return { dataUrl, width: canvas.width, height: canvas.height };
+}
+
+/**
+ * Render all pages of a PDF to images efficiently by loading the document once
+ */
+export async function renderAllPdfPagesToImages(
+  pdfData: ArrayBuffer | Uint8Array,
+  format: 'image/jpeg' | 'image/png' = 'image/jpeg',
+  scale: number = 2.0,
+  onProgress?: (current: number, total: number) => void
+): Promise<{ pageNum: number; dataUrl: string; width: number; height: number }[]> {
+  const safeData = pdfData instanceof Uint8Array ? new Uint8Array(pdfData) : new Uint8Array(pdfData.slice(0));
+  const loadingTask = pdfjsLib.getDocument({ data: safeData });
+  const pdf = await loadingTask.promise;
+  const numPages = pdf.numPages;
+  const pagesList: { pageNum: number; dataUrl: string; width: number; height: number }[] = [];
+
+  for (let i = 1; i <= numPages; i++) {
+    if (onProgress) {
+      onProgress(i, numPages);
+    }
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) continue;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const renderContext = {
+      canvasContext: ctx,
+      viewport: viewport,
+      canvas: canvas,
+    };
+
+    await (page as any).render(renderContext).promise;
+    const dataUrl = canvas.toDataURL(format, format === 'image/jpeg' ? 0.92 : undefined);
+    pagesList.push({
+      pageNum: i,
+      dataUrl,
+      width: canvas.width,
+      height: canvas.height,
+    });
+  }
+
+  return pagesList;
 }
 
 /**
  * Get total page count of a PDF
  */
 export async function getPdfInfo(pdfData: ArrayBuffer | Uint8Array): Promise<{ numPages: number; title?: string }> {
-  const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+  const safeData = pdfData instanceof Uint8Array ? new Uint8Array(pdfData) : new Uint8Array(pdfData.slice(0));
+  const loadingTask = pdfjsLib.getDocument({ data: safeData });
   const pdf = await loadingTask.promise;
   const metadata = await pdf.getMetadata().catch(() => null);
   const title = (metadata?.info as any)?.Title || undefined;
