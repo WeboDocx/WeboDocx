@@ -68,19 +68,23 @@ export async function getPdfInfo(pdfData: ArrayBuffer | Uint8Array): Promise<{ n
  * Extract text and structure from PDF
  */
 export async function extractPdfText(pdfData: ArrayBuffer | Uint8Array): Promise<ExtractedPage[]> {
-  const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+  // Use a defensive Uint8Array copy so PDF.js worker doesn't detach the caller's buffer
+  const safeData = pdfData instanceof Uint8Array ? new Uint8Array(pdfData) : new Uint8Array(pdfData.slice(0));
+  const loadingTask = pdfjsLib.getDocument({ data: safeData });
   const pdf = await loadingTask.promise;
   const pages: ExtractedPage[] = [];
 
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
-    const textItems = textContent.items.map((item: any) => item.str).join(' ');
+    const textItems = textContent.items
+      .map((item: any) => (typeof item?.str === 'string' ? item.str : ''))
+      .join(' ');
     const viewport = page.getViewport({ scale: 1.0 });
 
     pages.push({
       pageNumber: i,
-      text: textItems,
+      text: textItems.trim(),
       width: viewport.width,
       height: viewport.height,
     });
@@ -90,54 +94,92 @@ export async function extractPdfText(pdfData: ArrayBuffer | Uint8Array): Promise
 }
 
 /**
- * Convert PDF text content to Word .docx Blob
+ * Create Word .docx Document Blob from extracted pages array or a raw text string
  */
-export async function convertPdfToDocx(
-  pdfData: ArrayBuffer | Uint8Array,
+export async function createDocxFromText(
+  input: string | ExtractedPage[],
   docTitle: string = 'Converted Document'
 ): Promise<Blob> {
-  const pages = await extractPdfText(pdfData);
+  const paragraphs: Paragraph[] = [];
 
-  const docSections = pages.map((p) => {
-    const lines = p.text
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean);
+  if (Array.isArray(input)) {
+    input.forEach((p) => {
+      paragraphs.push(
+        new Paragraph({
+          text: `--- Page ${p.pageNumber} ---`,
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 100 },
+        })
+      );
 
-    const paragraphs: Paragraph[] = [];
+      const lines = p.text
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
 
-    paragraphs.push(
-      new Paragraph({
-        text: `--- Page ${p.pageNumber} ---`,
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 200, after: 100 },
-      })
-    );
-
-    if (lines.length > 0) {
-      lines.forEach((line) => {
+      if (lines.length > 0) {
+        lines.forEach((line) => {
+          paragraphs.push(
+            new Paragraph({
+              children: [new TextRun({ text: line, size: 22 })],
+              spacing: { after: 120 },
+            })
+          );
+        });
+      } else {
+        const cleanText = p.text.replace(/\s+/g, ' ').trim();
         paragraphs.push(
           new Paragraph({
-            children: [new TextRun({ text: line, size: 22 })],
+            children: [
+              new TextRun({
+                text: cleanText || '[No readable text extracted on this page]',
+                size: 22,
+                italics: !cleanText,
+              }),
+            ],
             spacing: { after: 120 },
           })
         );
-      });
-    } else {
-      // If single block of text
-      const cleanText = p.text.replace(/\s+/g, ' ').trim();
-      paragraphs.push(
-        new Paragraph({
-          children: [new TextRun({ text: cleanText || '[No readable OCR text extracted from this page image]', size: 22 })],
-          spacing: { after: 120 },
-        })
-      );
-    }
+      }
+    });
+  } else {
+    // Input is a string (e.g. from user textarea or joined pages)
+    const rawLines = (input || '').split('\n');
+    rawLines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        paragraphs.push(
+          new Paragraph({
+            text: '',
+            spacing: { after: 80 },
+          })
+        );
+      } else if (trimmed.startsWith('--- PAGE') || trimmed.startsWith('--- Page')) {
+        paragraphs.push(
+          new Paragraph({
+            text: trimmed,
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 240, after: 120 },
+          })
+        );
+      } else {
+        paragraphs.push(
+          new Paragraph({
+            children: [new TextRun({ text: trimmed, size: 22 })],
+            spacing: { after: 120 },
+          })
+        );
+      }
+    });
+  }
 
-    return paragraphs;
-  });
-
-  const allParagraphs = docSections.flat();
+  if (paragraphs.length === 0) {
+    paragraphs.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'No text content available in document.', size: 22 })],
+      })
+    );
+  }
 
   const doc = new Document({
     sections: [
@@ -149,13 +191,28 @@ export async function convertPdfToDocx(
             heading: HeadingLevel.TITLE,
             spacing: { after: 300 },
           }),
-          ...allParagraphs,
+          ...paragraphs,
         ],
       },
     ],
   });
 
   return await Packer.toBlob(doc);
+}
+
+/**
+ * Convert PDF text content to Word .docx Blob
+ */
+export async function convertPdfToDocx(
+  pdfDataOrPages: ArrayBuffer | Uint8Array | ExtractedPage[] | string,
+  docTitle: string = 'Converted Document'
+): Promise<Blob> {
+  if (typeof pdfDataOrPages === 'string' || Array.isArray(pdfDataOrPages)) {
+    return createDocxFromText(pdfDataOrPages, docTitle);
+  }
+
+  const pages = await extractPdfText(pdfDataOrPages);
+  return createDocxFromText(pages, docTitle);
 }
 
 /**

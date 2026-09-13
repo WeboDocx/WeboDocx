@@ -8,6 +8,7 @@ import {
   getPdfInfo,
   extractPdfText,
   convertPdfToDocx,
+  createDocxFromText,
   convertDocxToPdf,
   convertImagesToPdf,
   mergePdfDocuments,
@@ -464,37 +465,37 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
   // ==========================================
   // TAB 3: PDF TO WORD (.DOCX) HANDLERS
   // ==========================================
-  const handlePdfToDocxFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processPdfToDocxFile = async (file: File) => {
     setPdfToDocxFile(file);
     setIsPdfToDocxProcessing(true);
+    setPdfToDocxBlob(null);
     taskManager?.startTask(`Extracting text from ${file.name}`, 20, 'Reading PDF text streams & layout blocks...');
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pages = await extractPdfText(arrayBuffer);
+      // Defensive Uint8Array slice to ensure buffer never detaches
+      const pages = await extractPdfText(new Uint8Array(arrayBuffer.slice(0)));
       setPdfToDocxPagesData(pages);
 
       const combinedText = pages.map((p) => `--- PAGE ${p.pageNumber} ---\n${p.text}`).join('\n\n');
       setPdfToDocxText(combinedText);
 
       taskManager?.updateProgress(70, 'Building formatted Microsoft Word .docx file...');
-      const docxBlob = await convertPdfToDocx(arrayBuffer, file.name.replace(/\.[^/.]+$/, ''));
+      const baseTitle = file.name.replace(/\.[^/.]+$/, '');
+      const docxBlob = await createDocxFromText(pages, baseTitle);
       setPdfToDocxBlob(docxBlob);
 
       taskManager?.completeTask('PDF converted to Word (.docx)', 400);
       onAddToast({
-        title: 'PDF to Word Extracted',
-        description: `Extracted ${pages.length} page(s) of editable text ready for Word download.`,
+        title: 'PDF to Word Ready',
+        description: `Extracted ${pages.length} page(s). Word document (.docx) is ready to download.`,
         type: 'success',
       });
     } catch (err: any) {
-      console.error(err);
+      console.error('PDF to Word extraction error:', err);
       taskManager?.cancelTask();
       onAddToast({
-        title: 'PDF to Word Failed',
+        title: 'PDF to Word Issue',
         description: err?.message || 'Could not parse text from this PDF file.',
         type: 'error',
       });
@@ -503,22 +504,76 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
     }
   };
 
-  const handleDownloadDocx = () => {
-    if (!pdfToDocxBlob || !pdfToDocxFile) return;
-    const url = URL.createObjectURL(pdfToDocxBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${pdfToDocxFile.name.replace(/\.[^/.]+$/, '')}_Editable.docx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handlePdfToDocxFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processPdfToDocxFile(file);
+  };
 
-    onAddToast({
-      title: 'Word Document Downloaded',
-      description: 'Editable .docx file generated for Microsoft Word & Google Docs.',
-      type: 'success',
-    });
+  const handleDownloadDocx = async () => {
+    const textAvailable = pdfToDocxText.trim();
+    if (!pdfToDocxBlob && !textAvailable) {
+      onAddToast({
+        title: 'No Content Available',
+        description: 'Please upload a PDF document or enter text to export as a Word file.',
+        type: 'warning',
+      });
+      return;
+    }
+
+    try {
+      let blobToDownload = pdfToDocxBlob;
+
+      // If docx blob was cleared because the user edited the text in the textarea, generate on the fly
+      if (!blobToDownload && textAvailable) {
+        setIsPdfToDocxProcessing(true);
+        const title = pdfToDocxFile ? pdfToDocxFile.name.replace(/\.[^/.]+$/, '') : 'Document';
+        blobToDownload = await createDocxFromText(pdfToDocxText, title);
+        setPdfToDocxBlob(blobToDownload);
+      }
+
+      if (!blobToDownload) {
+        throw new Error('Failed to generate Word document.');
+      }
+
+      const fileName = pdfToDocxFile
+        ? `${pdfToDocxFile.name.replace(/\.[^/.]+$/, '')}_Editable.docx`
+        : 'Document_Editable.docx';
+
+      const url = URL.createObjectURL(blobToDownload);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const sizeKb = Math.round(blobToDownload.size / 1024) || 1;
+      recordRecentActivity({
+        fileName,
+        category: 'pdf-docx',
+        fileType: 'docx',
+        sizeKb,
+        originalSizeKb: pdfToDocxFile ? Math.round(pdfToDocxFile.size / 1024) : undefined,
+        details: `Converted PDF to editable Word .docx (${pdfToDocxPagesData.length || 1} pages)`,
+      });
+
+      onAddToast({
+        title: 'Word Document Downloaded',
+        description: 'Editable .docx file generated for Microsoft Word & Google Docs.',
+        type: 'success',
+      });
+    } catch (err: any) {
+      console.error('Word download error:', err);
+      onAddToast({
+        title: 'Download Failed',
+        description: err?.message || 'Could not build Word document file.',
+        type: 'error',
+      });
+    } finally {
+      setIsPdfToDocxProcessing(false);
+    }
   };
 
   // ==========================================
@@ -1882,13 +1937,33 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
 
               <label
                 htmlFor="pdf-to-docx-input"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const droppedFile = e.dataTransfer.files?.[0];
+                  if (droppedFile) {
+                    if (droppedFile.name.toLowerCase().endsWith('.pdf')) {
+                      processPdfToDocxFile(droppedFile);
+                    } else {
+                      onAddToast({
+                        title: 'Invalid File',
+                        description: 'Please drop a valid PDF document.',
+                        type: 'warning',
+                      });
+                    }
+                  }
+                }}
                 className="flex flex-col items-center justify-center p-8 bg-[#f2f3ff] hover:bg-[#eaedff] rounded-xl cursor-pointer transition-all text-center border-2 border-dashed border-[#dae2fd] hover:border-[#00236f]"
               >
                 <span className="material-symbols-outlined text-[36px] text-[#00236f] mb-1">
                   description
                 </span>
                 <span className="text-[14px] font-bold text-[#00236f]">
-                  {pdfToDocxFile ? pdfToDocxFile.name : 'Select PDF Document'}
+                  {pdfToDocxFile ? pdfToDocxFile.name : 'Select or Drop PDF Document'}
                 </span>
                 <span className="text-[11px] text-[#757682] mt-1">
                   Marksheets, application forms, notifications &amp; resumes
@@ -1903,12 +1978,19 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
                 />
               </label>
 
-              {pdfToDocxPagesData.length > 0 && (
+              {(pdfToDocxPagesData.length > 0 || pdfToDocxText.trim().length > 0) && (
                 <div className="p-3 bg-[#f2f3ff] rounded-xl border border-[#dae2fd] flex items-center justify-between">
-                  <span className="text-[12px] font-medium text-[#131b2e]">
-                    Extracted Pages: <strong>{pdfToDocxPagesData.length}</strong>
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-[#004a32] text-white text-[11px] font-bold">
+                  <div className="flex flex-col">
+                    <span className="text-[12px] font-medium text-[#131b2e]">
+                      {pdfToDocxPagesData.length > 0
+                        ? `Extracted Pages: ${pdfToDocxPagesData.length}`
+                        : `Extracted Characters: ${pdfToDocxText.trim().length}`}
+                    </span>
+                    <span className="text-[10.5px] text-[#003120] font-semibold">
+                      {pdfToDocxBlob ? '✓ Word (.docx) compiled' : 'Ready to export to Word'}
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-[#004a32] text-white text-[11px] font-bold shadow-xs">
                     Ready to Download
                   </span>
                 </div>
@@ -1916,14 +1998,18 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
 
               <button
                 type="button"
-                disabled={!pdfToDocxBlob || isPdfToDocxProcessing}
+                disabled={isPdfToDocxProcessing || (!pdfToDocxBlob && !pdfToDocxText.trim())}
                 onClick={handleDownloadDocx}
-                className="w-full py-3 rounded-xl bg-[#00236f] hover:bg-[#1e3a8a] text-white font-bold text-[14px] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-3 rounded-xl bg-[#00236f] hover:bg-[#1e3a8a] text-white font-bold text-[14px] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-[20px]">
-                  download
+                  {isPdfToDocxProcessing ? 'sync' : 'download'}
                 </span>
-                <span>Download Editable Word (.docx)</span>
+                <span>
+                  {isPdfToDocxProcessing
+                    ? 'Building Word Document...'
+                    : 'Download Editable Word (.docx)'}
+                </span>
               </button>
             </div>
           </div>
@@ -1932,9 +2018,14 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
           <div className="lg:col-span-7 flex flex-col gap-4">
             <div className="bg-white p-5 rounded-xl shadow-sm border border-[#eaedff] flex flex-col gap-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-[15px] font-bold text-[#131b2e]">
-                  Live Extracted Document Text Preview
-                </h3>
+                <div>
+                  <h3 className="text-[15px] font-bold text-[#131b2e]">
+                    Live Extracted Document Text Preview
+                  </h3>
+                  <p className="text-[11.5px] text-[#757682]">
+                    Review or edit extracted text before downloading. Any edits will be saved in your .docx
+                  </p>
+                </div>
                 {pdfToDocxText && (
                   <button
                     type="button"
@@ -1946,7 +2037,7 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
                         type: 'info',
                       });
                     }}
-                    className="flex items-center gap-1 text-[12px] text-[#00236f] font-semibold hover:underline cursor-pointer"
+                    className="flex items-center gap-1 text-[12px] text-[#00236f] font-semibold hover:underline cursor-pointer shrink-0 ml-2"
                   >
                     <span className="material-symbols-outlined text-[16px]">
                       content_copy
@@ -1958,7 +2049,11 @@ export const PdfToolsView: React.FC<PdfToolsViewProps> = ({
 
               <textarea
                 value={pdfToDocxText}
-                onChange={(e) => setPdfToDocxText(e.target.value)}
+                onChange={(e) => {
+                  setPdfToDocxText(e.target.value);
+                  // Invalidate current pre-compiled blob so next click dynamically rebuilds from updated text
+                  setPdfToDocxBlob(null);
+                }}
                 placeholder="Extracted text from PDF will appear here for your review and edits..."
                 rows={16}
                 className="w-full p-4 bg-[#f8fafc] rounded-xl border border-[#dae2fd] text-[13px] font-mono text-[#131b2e] leading-relaxed focus:outline-none focus:border-[#00236f] resize-y"
