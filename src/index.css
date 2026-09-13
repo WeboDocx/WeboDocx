@@ -1,0 +1,234 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    color: #131b2e;
+    background-color: #faf8ff;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.dark, body.dark {
+    color: #f1f5f9;
+    background-color: #0b0f19;
+    color-scheme: dark;
+  }
+  
+  h1, h2, h3, h4, .font-headline, .font-display {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  /* Material Symbols styling */
+  .material-symbols-outlined {
+    font-variation-settings:
+      'FILL' 0,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24;
+    vertical-align: middle;
+    line-height: 1;
+  }
+
+  .material-symbols-outlined.fill-1 {
+    font-variation-settings:
+      'FILL' 1,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24;
+  }
+}
+
+/* Custom utility colors & shadows matching Sovereign Utility spec */
+:root {
+  --color-primary: #00236f;
+  --color-primary-container: #1e3a8a;
+  --color-secondary: #904d00;
+  --color-secondary-container: #fe932c;
+  --color-tertiary: #003120;
+  --color-tertiary-fixed: #85f8c4;
+}
+
+html.dark {
+  --color-primary: #93c5fd;
+  --color-primary-container: #1d4ed8;
+  --color-secondary: #fdba74;
+  --color-secondary-container: #c2410c;
+  --color-tertiary: #6ee7b7;
+  --color-tertiary-fixed: #047857;
+}
+
+/* Dark mode utility overrides for containers and borders */
+.dark #app-header {
+  background-color: rgba(15, 23, 42, 0.92) !important;
+  border-color: #1e293b !important;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.35) !important;
+}
+
+.dark #app-sidebar {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  box-shadow: 1px 0 8px rgba(0, 0, 0, 0.35) !important;
+}
+
+.dark #client-engine-sidebar-box {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+.dark #client-engine-sidebar-box span,
+.dark #client-engine-sidebar-box p {
+  color: #e2e8f0 !important;
+}
+
+.dark .bg-white {
+  background-color: #131b2e !important;
+  color: #f1f5f9;
+}
+
+.dark .bg-\[\#ffffff\]\/90 {
+  background-color: rgba(15, 23, 42, 0.92) !important;
+}
+
+.dark .bg-\[\#f8fafc\] {
+  background-color: #0b0f19 !important;
+}
+
+.dark .bg-\[\#f2f3ff\] {
+  background-color: #1e293b !important;
+  color: #f1f5f9;
+}
+
+.dark .bg-\[\#eaedff\] {
+  background-color: #1e293b !important;
+}
+
+.dark .bg-\[\#e2e7ff\] {
+  background-color: #1e293b !important;
+  color: #93c5fd !important;
+}
+
+.dark .border-\[\#eaedff\],
+.dark .border-\[\#dae2fd\],
+.dark .border-\[\#dce1ff\],
+.dark .border-slate-200 {
+  border-color: #334155 !important;
+}
+
+.dark .text-\[\#131b2e\] {
+  color: #f8fafc !important;
+}
+
+.dark .text-\[\#444651\] {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-\[\#757682\] {
+  color: #94a3b8 !important;
+}
+
+.dark .text-\[\#00236f\] {
+  color: #93c5fd !important;
+}
+
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-xl {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark input[type="text"],
+.dark input[type="number"],
+.dark input[type="date"],
+.dark select {
+  background-color: #0b0f19 !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.dark .divide-\[\#eaedff\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+
+/* Print Simulation Styles */
+.print-proof-cmyk {
+  filter: contrast(1.04) saturate(0.94) brightness(0.98);
+}
+
+.print-proof-greyscale {
+  filter: grayscale(100%) contrast(1.12);
+}
+
+.print-paper-texture {
+  background-image: radial-gradient(#e2e8f0 0.75px, transparent 0.75px);
+  background-size: 8px 8px;
+}
+
+/* Millimeter Ruler Backgrounds */
+.ruler-ticks-h {
+  background-size: 10mm 100%, 2mm 100%;
+  background-image: linear-gradient(to right, #94a3b8 1px, transparent 1px),
+                    linear-gradient(to right, #cbd5e1 1px, transparent 1px);
+}
+
+.ruler-ticks-v {
+  background-size: 100% 10mm, 100% 2mm;
+  background-image: linear-gradient(to bottom, #94a3b8 1px, transparent 1px),
+                    linear-gradient(to bottom, #cbd5e1 1px, transparent 1px);
+}
+
+/* Native Print Styles via CSS Media Queries */
+@page {
+  size: auto;
+  margin: 4mm;
+}
+
+@media print {
+  /* Hide non-essential layout shell elements */
+  header,
+  aside,
+  nav,
+  button,
+  .no-print,
+  #global-progress-indicator,
+  .toast-container,
+  .modal-backdrop,
+  .non-printable-controls {
+    display: none !important;
+  }
+
+  /* Reset body and container backgrounds for pristine print output */
+  html,
+  body,
+  main,
+  #main-content-canvas {
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Target printable sheet container */
+  .printable-target {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+}

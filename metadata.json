@@ -1,0 +1,6 @@
+{
+  "name": "WeboDocx - Citizen & Exam Utility Portal",
+  "description": "Fast-track exam forms & scheme applications with Mobile Camera Document Scanner, Digital Signature stamping & self-attestation on PDFs, quick QR code PNG generation for portal URLs & contact vCards, OCR text extraction & searchable PDF creation, 100% compliant photo resizing, passport sheet generation, PDF & Word document suite, and All India welfare scheme matching.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
