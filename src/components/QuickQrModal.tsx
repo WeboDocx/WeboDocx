@@ -224,7 +224,7 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
 
           {/* QR Preview & Options */}
           <div className="flex items-center justify-between gap-4 bg-[#f8f9ff] p-4 rounded-xl border border-[#dae2fd]">
-            <div className="p-2 bg-white rounded-lg shadow-2xs border border-[#eaedff]">
+            <div className="p-2 bg-white qr-canvas-wrapper rounded-lg shadow-2xs border border-[#eaedff]">
               <canvas
                 ref={canvasRef}
                 className="w-32 h-32 object-contain"

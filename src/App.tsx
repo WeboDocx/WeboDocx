@@ -146,7 +146,7 @@ export function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-[#131b2e] flex flex-col font-['Inter'] antialiased selection:bg-[#00236f] selection:text-white">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#f8fafc] text-[#131b2e] flex flex-col font-['Inter'] antialiased selection:bg-[#00236f] selection:text-white">
       {/* Toast Notification Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
@@ -186,7 +186,7 @@ export function App() {
       />
 
       {/* Main Body Layout */}
-      <div className="flex-1 flex pt-16 relative">
+      <div className="flex-1 flex pt-16 relative w-full min-w-0 overflow-x-hidden">
         {/* Left Navigation Sidebar */}
         <Sidebar
           currentView={currentView}
@@ -196,11 +196,13 @@ export function App() {
           onToggle={() => setIsSidebarOpen((prev) => !prev)}
         />
 
-        {/* Dynamic Main Workspace Canvas (with responsive left-margin offset for 64-width sidebar) */}
+        {/* Dynamic Main Workspace Canvas (with auto-fitting width offset for sidebar) */}
         <main
           id="main-content-canvas"
-          className={`flex-1 transition-all duration-300 ease-in-out p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-4rem)] w-full relative ${
-            isSidebarOpen ? 'lg:ml-64 max-w-[1600px]' : 'ml-0 max-w-[1750px]'
+          className={`flex-1 min-w-0 transition-all duration-300 ease-in-out p-3 sm:p-5 lg:p-7 min-h-[calc(100vh-4rem)] relative ${
+            isSidebarOpen
+              ? 'lg:ml-64 lg:w-[calc(100%-16rem)] lg:max-w-[calc(100%-16rem)]'
+              : 'ml-0 w-full max-w-[1750px]'
           }`}
         >
           {/* Quick Floating Show Sidebar Button when Sidebar is Closed */}
@@ -256,6 +258,8 @@ export function App() {
             <SchemeFinderView
               onAddToast={addToast}
               taskManager={taskManager}
+              isSidebarOpen={isSidebarOpen}
+              onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
             />
           )}
 

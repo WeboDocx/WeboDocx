@@ -59,17 +59,17 @@ html.dark {
   --color-tertiary-fixed: #047857;
 }
 
-/* Dark mode utility overrides for containers and borders */
+/* Dark mode utility overrides for containers, surfaces, borders, and typography */
 .dark #app-header {
-  background-color: rgba(15, 23, 42, 0.92) !important;
+  background-color: rgba(15, 23, 42, 0.95) !important;
   border-color: #1e293b !important;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.35) !important;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.45) !important;
 }
 
 .dark #app-sidebar {
   background-color: #0f172a !important;
   border-color: #1e293b !important;
-  box-shadow: 1px 0 8px rgba(0, 0, 0, 0.35) !important;
+  box-shadow: 1px 0 8px rgba(0, 0, 0, 0.45) !important;
 }
 
 .dark #client-engine-sidebar-box {
@@ -82,73 +82,192 @@ html.dark {
   color: #e2e8f0 !important;
 }
 
-.dark .bg-white {
+/* Comprehensive Dark Mode Background Surfaces */
+.dark .bg-white,
+.dark .bg-\[\#ffffff\],
+.dark .bg-\[\#ffffff\]\/90,
+.dark .bg-\[\#ffffff\]\/95 {
   background-color: #131b2e !important;
-  color: #f1f5f9;
-}
-
-.dark .bg-\[\#ffffff\]\/90 {
-  background-color: rgba(15, 23, 42, 0.92) !important;
+  color: #f8fafc;
 }
 
 .dark .bg-\[\#f8fafc\] {
   background-color: #0b0f19 !important;
 }
 
-.dark .bg-\[\#f2f3ff\] {
-  background-color: #1e293b !important;
-  color: #f1f5f9;
+.dark .bg-\[\#f8f9ff\],
+.dark .bg-\[\#f8faff\],
+.dark .bg-\[\#faf8ff\] {
+  background-color: #0f172a !important;
+  color: #f8fafc;
 }
 
-.dark .bg-\[\#eaedff\] {
+.dark .bg-\[\#f2f3ff\],
+.dark .bg-\[\#f0f4ff\],
+.dark .bg-\[\#f1f5f9\],
+.dark .bg-\[\#eaedff\],
+.dark .bg-\[\#eef2ff\] {
   background-color: #1e293b !important;
+  color: #f8fafc;
 }
 
-.dark .bg-\[\#e2e7ff\] {
+.dark .bg-\[\#e2e7ff\],
+.dark .bg-\[\#dae2fd\],
+.dark .bg-\[\#dce1ff\],
+.dark .bg-\[\#d5deff\],
+.dark .bg-\[\#d0daff\],
+.dark .bg-\[\#b6c4ff\] {
   background-color: #1e293b !important;
   color: #93c5fd !important;
 }
 
+/* Status Alert & Badge Backgrounds in Dark Mode */
+.dark .bg-\[\#ffdcc3\],
+.dark .bg-\[\#ffdcc3\]\/40 {
+  background-color: rgba(120, 53, 15, 0.35) !important;
+  color: #fed7aa !important;
+}
+
+.dark .bg-\[\#ffdad6\],
+.dark .bg-\[\#fee2e2\],
+.dark .bg-\[\#ffebee\] {
+  background-color: rgba(127, 29, 29, 0.35) !important;
+  color: #fca5a5 !important;
+}
+
+.dark .bg-\[\#ffe885\] {
+  background-color: rgba(113, 63, 18, 0.4) !important;
+  color: #fde047 !important;
+}
+
+.dark .bg-\[\#85f8c4\]\/15,
+.dark .bg-\[\#85f8c4\]\/20,
+.dark .bg-\[\#85f8c4\]\/30 {
+  background-color: rgba(6, 78, 59, 0.35) !important;
+  color: #85f8c4 !important;
+}
+
+/* Comprehensive Dark Mode Text Typography Colors */
+.dark .text-\[\#131b2e\],
+.dark .text-\[\#050b1a\],
+.dark .text-slate-900,
+.dark .text-gray-900 {
+  color: #f8fafc !important;
+}
+
+.dark .text-\[\#444651\],
+.dark .text-slate-700,
+.dark .text-gray-700 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-\[\#757682\],
+.dark .text-\[\#555770\],
+.dark .text-slate-500,
+.dark .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+/* Blue & Indigo Accents */
+.dark .text-\[\#00236f\],
+.dark .text-\[\#00174d\],
+.dark .text-\[\#00164e\],
+.dark .text-\[\#0b328a\],
+.dark .text-\[\#1e1b4b\],
+.dark .text-\[\#1e3a8a\] {
+  color: #93c5fd !important;
+}
+
+/* Green & Mint Accents (Verified, Matched, Success) */
+.dark .text-\[\#003120\],
+.dark .text-\[\#004a32\],
+.dark .text-\[\#002114\],
+.dark .text-\[\#006e33\] {
+  color: #85f8c4 !important;
+}
+
+/* Amber, Brown & Orange Accents (Warnings, Categories, Highlight) */
+.dark .text-\[\#904d00\],
+.dark .text-\[\#663500\],
+.dark .text-\[\#2f1500\],
+.dark .text-\[\#291e00\] {
+  color: #fed7aa !important;
+}
+
+/* Red & Coral Accents (Deadlines, Critical, Errors) */
+.dark .text-\[\#ba1a1a\],
+.dark .text-\[\#410002\] {
+  color: #fca5a5 !important;
+}
+
+/* Borders in Dark Mode */
 .dark .border-\[\#eaedff\],
 .dark .border-\[\#dae2fd\],
 .dark .border-\[\#dce1ff\],
+.dark .border-\[\#b6c4ff\],
+.dark .border-\[\#b4c5ff\],
+.dark .border-\[\#c7d2fe\],
+.dark .border-\[\#cbd5e1\],
+.dark .border-\[\#e2e8f0\],
+.dark .border-\[\#f1f5f9\],
 .dark .border-slate-200 {
   border-color: #334155 !important;
 }
 
-.dark .text-\[\#131b2e\] {
-  color: #f8fafc !important;
-}
-
-.dark .text-\[\#444651\] {
-  color: #cbd5e1 !important;
-}
-
-.dark .text-\[\#757682\] {
-  color: #94a3b8 !important;
-}
-
-.dark .text-\[\#00236f\] {
-  color: #93c5fd !important;
+.dark .border-\[\#ffdcc3\],
+.dark .border-\[\#ffdad6\] {
+  border-color: #78350f !important;
 }
 
 .dark .shadow-sm,
 .dark .shadow-md,
 .dark .shadow-xl {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
 }
 
+/* Form Inputs, Search Fields, Textareas & Select Dropdowns */
 .dark input[type="text"],
 .dark input[type="number"],
 .dark input[type="date"],
+.dark input[type="search"],
+.dark textarea,
 .dark select {
   background-color: #0b0f19 !important;
   border-color: #334155 !important;
   color: #f8fafc !important;
 }
 
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+.dark select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+/* Interactive Hover States in Dark Mode */
+.dark .hover\:bg-\[\#eaedff\]:hover,
+.dark .hover\:bg-\[\#f2f3ff\]:hover,
+.dark .hover\:bg-\[\#e2e7ff\]:hover,
+.dark .hover\:bg-\[\#dce1ff\]:hover {
+  background-color: #334155 !important;
+}
+
+.dark .hover\:text-\[\#131b2e\]:hover,
+.dark .hover\:text-\[\#00236f\]:hover,
+.dark .hover\:text-\[\#00174d\]:hover {
+  color: #ffffff !important;
+}
+
 .dark .divide-\[\#eaedff\] > :not([hidden]) ~ :not([hidden]) {
   border-color: #1e293b !important;
+}
+
+/* Ensure QR canvas background remains clear white for camera scanners */
+.dark .qr-canvas-wrapper {
+  background-color: #ffffff !important;
 }
 
 /* Print Simulation Styles */

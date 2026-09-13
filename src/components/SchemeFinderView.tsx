@@ -7,11 +7,15 @@ import { QuickQrModal } from './QuickQrModal';
 interface SchemeFinderViewProps {
   onAddToast: (toast: Omit<ToastMessage, 'id'>) => void;
   taskManager?: TaskManager;
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
   onAddToast,
   taskManager,
+  isSidebarOpen,
+  onToggleSidebar,
 }) => {
   // Filter state - Default to ALL INDIA / ALL CATEGORIES for broad discovery
   const [state, setState] = useState<string>('ALL');
@@ -164,12 +168,12 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
   ];
 
   return (
-    <div id="scheme-finder-root" className="flex flex-col w-full">
+    <div id="scheme-finder-root" className="flex flex-col w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Top Banner */}
-      <section className="bg-gradient-to-r from-[#00236f] to-[#1e3a8a] text-white p-5 rounded-xl shadow-sm mb-5 relative overflow-hidden">
+      <section className="bg-gradient-to-r from-[#00236f] to-[#1e3a8a] text-white p-4 sm:p-5 rounded-xl shadow-sm mb-5 relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 skew-x-12 pointer-events-none"></div>
-        <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-4 relative z-10 min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full bg-[#85f8c4] text-[#002114] text-[10px] font-bold uppercase tracking-wider">
                 Pan-India &amp; State DBT Database
@@ -178,7 +182,7 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
                 100% Direct Benefit Transfer • Zero Middlemen • Free Portal Links
               </span>
             </div>
-            <h2 className="font-['Outfit'] text-[24px] sm:text-[28px] font-bold tracking-tight">
+            <h2 className="font-['Outfit'] text-[22px] sm:text-[28px] font-bold tracking-tight">
               All India &amp; State Welfare Scheme Finder
             </h2>
             <p className="text-[13px] text-[#dae2fd] max-w-2xl mt-0.5">
@@ -186,27 +190,41 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => handleDownloadChecklist()}
-            className="px-4 py-2 rounded-lg bg-white text-[#00236f] text-[13px] font-bold hover:bg-[#dae2fd] transition-all flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
-          >
-            <span className="material-symbols-outlined text-[18px]">
-              download
-            </span>
-            <span>Download All Checklist PDF</span>
-          </button>
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {isSidebarOpen && onToggleSidebar && (
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[12px] font-medium transition-all backdrop-blur-xs border border-white/20 cursor-pointer"
+                title="Collapse sidebar for full-width scheme workspace"
+              >
+                <span className="material-symbols-outlined text-[17px]">fullscreen</span>
+                <span>Full-Width View</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => handleDownloadChecklist()}
+              className="px-4 py-2 rounded-lg bg-white text-[#00236f] text-[13px] font-bold hover:bg-[#dae2fd] transition-all flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                download
+              </span>
+              <span>Download All Checklist PDF</span>
+            </button>
+          </div>
         </div>
       </section>
 
       {/* Domain Category Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-4 scrollbar-thin">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-4 scrollbar-thin max-w-full">
         {domainCategories.map((cat) => (
           <button
             key={cat.id}
             type="button"
             onClick={() => setSelectedType(cat.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
               selectedType === cat.id
                 ? 'bg-[#00236f] text-white shadow-xs'
                 : 'bg-white text-[#444651] border border-[#eaedff] hover:bg-[#f2f3ff]'
@@ -221,8 +239,8 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
       </div>
 
       {/* Search and Scope Bar */}
-      <div className="bg-white p-3.5 rounded-xl shadow-sm border border-[#eaedff] mb-5 flex flex-wrap items-center gap-3">
-        <div className="flex-1 min-w-[240px] relative">
+      <div className="bg-white p-3.5 rounded-xl shadow-sm border border-[#eaedff] mb-5 flex flex-wrap items-center gap-3 w-full min-w-0">
+        <div className="flex-1 min-w-[200px] sm:min-w-[240px] relative">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#757682] text-[20px]">
             search
           </span>
@@ -244,9 +262,9 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <label className="text-[12px] font-bold text-[#444651] uppercase tracking-wider shrink-0">
-            Region / State:
+        <div className="flex items-center gap-2 max-w-full min-w-0">
+          <label className="text-[12px] font-bold text-[#444651] uppercase tracking-wider shrink-0 hidden sm:inline">
+            Region:
           </label>
           <select
             value={state}
@@ -258,7 +276,7 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
                 setDistrict('All States');
               }
             }}
-            className="h-10 px-3 bg-[#f2f3ff] text-[#00236f] font-bold text-[13px] rounded-lg border border-[#dae2fd] focus:outline-none cursor-pointer"
+            className="h-10 px-3 bg-[#f2f3ff] text-[#00236f] font-bold text-[13px] rounded-lg border border-[#dae2fd] focus:outline-none cursor-pointer max-w-full truncate"
           >
             <option value="ALL">🇮🇳 All India (Central Government Schemes)</option>
             <option value="ANY_STATE">🌐 Browse All Schemes (Central + All States)</option>
@@ -276,9 +294,9 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
       </div>
 
       {/* Main Grid: Filter Column (4 Cols) + Schemes Stream (8 Cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start w-full min-w-0">
         {/* LEFT COLUMN: Applicant Profile & Criteria (4 Cols) */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
+        <div className="lg:col-span-4 flex flex-col gap-4 w-full min-w-0">
           <div className="bg-white p-5 rounded-xl shadow-sm border border-[#eaedff] flex flex-col gap-4">
             <div className="flex items-center justify-between border-b border-[#eaedff] pb-3">
               <div className="flex items-center gap-2">
@@ -357,7 +375,7 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
                 </label>
               </div>
 
-              <div className="flex gap-1 mt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 mt-1">
                 {[
                   { label: '₹1.4L (Tehsil)', val: 140000 },
                   { label: '₹2.5L (OBC)', val: 250000 },
@@ -369,7 +387,7 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
                     type="button"
                     disabled={ignoreIncomeCap}
                     onClick={() => setIncome(preset.val)}
-                    className={`flex-1 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-40 ${
+                    className={`py-1 px-1 rounded text-[11px] font-medium text-center truncate transition-colors cursor-pointer disabled:opacity-40 ${
                       income === preset.val && !ignoreIncomeCap
                         ? 'bg-[#dae2fd] text-[#00236f] font-bold'
                         : 'bg-[#f2f3ff] text-[#444651]'
@@ -499,14 +517,14 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
         </div>
 
         {/* RIGHT COLUMN: Matched Schemes Stream (8 Cols) */}
-        <div className="lg:col-span-8 flex flex-col gap-4">
+        <div className="lg:col-span-8 flex flex-col gap-4 w-full min-w-0">
           {/* Header Bar */}
-          <div className="flex flex-wrap items-center justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-[#eaedff] gap-2">
-            <div>
+          <div className="flex flex-wrap items-center justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-[#eaedff] gap-2 w-full min-w-0">
+            <div className="min-w-0 flex-1">
               <h3 className="font-['Outfit'] text-[18px] font-bold text-[#131b2e]">
                 Matched Welfare &amp; Financial Programs ({filteredSchemes.length})
               </h3>
-              <p className="text-[12px] text-[#444651]">
+              <p className="text-[12px] text-[#444651] truncate">
                 {state === 'ALL'
                   ? 'Displaying Pan-India Central Government Schemes'
                   : state === 'ANY_STATE'
@@ -514,7 +532,7 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
                   : `Displaying Central Government + ${state} State Schemes`}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <span className="px-3 py-1 rounded-full bg-[#003120] text-[#85f8c4] font-mono text-[11px] font-bold">
                 100% Direct Portal Links
               </span>
@@ -522,7 +540,7 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
           </div>
 
           {filteredSchemes.length === 0 ? (
-            <div className="bg-white p-8 rounded-xl border border-[#eaedff] text-center flex flex-col items-center justify-center gap-3">
+            <div className="bg-white p-8 rounded-xl border border-[#eaedff] text-center flex flex-col items-center justify-center gap-3 w-full min-w-0">
               <span className="material-symbols-outlined text-[48px] text-[#757682]">
                 search_off
               </span>
@@ -551,12 +569,12 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
             filteredSchemes.map((scheme) => (
               <div
                 key={scheme.id}
-                className="bg-white rounded-xl shadow-sm border border-[#eaedff] hover:shadow-md transition-all overflow-hidden flex flex-col"
+                className="bg-white rounded-xl shadow-sm border border-[#eaedff] hover:shadow-md transition-all overflow-hidden flex flex-col w-full min-w-0"
               >
                 {/* Card Top Strip */}
-                <div className="p-4 sm:p-5 flex flex-col gap-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="flex-1 min-w-[280px]">
+                <div className="p-4 sm:p-5 flex flex-col gap-3 min-w-0">
+                  <div className="flex flex-wrap items-start justify-between gap-3 min-w-0">
+                    <div className="flex-1 min-w-0 sm:min-w-[240px]">
                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
@@ -570,48 +588,50 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
                         <span className="px-2 py-0.5 rounded bg-[#e2e7ff] text-[#00236f] text-[10px] font-bold uppercase tracking-wider">
                           {scheme.category}
                         </span>
-                        <span className="text-[12px] text-[#757682]">
+                        <span className="text-[12px] text-[#757682] truncate max-w-[200px]">
                           {scheme.department}
                         </span>
                       </div>
-                      <h4 className="font-['Outfit'] text-[18px] sm:text-[20px] font-bold text-[#131b2e] leading-snug">
+                      <h4 className="font-['Outfit'] text-[18px] sm:text-[20px] font-bold text-[#131b2e] leading-snug break-words">
                         {scheme.title}
                       </h4>
                       {scheme.targetAudience && (
-                        <span className="inline-block mt-1 text-[11px] font-medium text-[#757682]">
+                        <span className="inline-block mt-1 text-[11px] font-medium text-[#757682] break-words">
                           Target Beneficiaries: <strong>{scheme.targetAudience}</strong>
                         </span>
                       )}
                     </div>
 
                     {/* Benefit Badge */}
-                    <div className="flex flex-col items-end shrink-0">
-                      <span className="font-['Outfit'] text-[18px] sm:text-[22px] font-bold text-[#00236f]">
+                    <div className="flex flex-col items-end shrink-0 ml-auto">
+                      <span className="font-['Outfit'] text-[18px] sm:text-[22px] font-bold text-[#00236f] whitespace-nowrap">
                         {scheme.financialBenefit}
                       </span>
-                      <span className="text-[11px] text-[#003120] font-semibold text-right">
+                      <span className="text-[11px] text-[#003120] font-semibold text-right whitespace-nowrap">
                         {scheme.benefitSubtitle}
                       </span>
                     </div>
                   </div>
 
                   {/* Match Reason Strip */}
-                  <div className="flex items-center gap-2 p-2.5 bg-[#f2f3ff] rounded-lg text-[12px] text-[#131b2e] border border-[#dae2fd]/60">
-                    <span className="material-symbols-outlined text-[#003120] text-[18px] shrink-0">
-                      verified
-                    </span>
-                    <span className="font-medium">{scheme.matchReason}</span>
-                    <span className="ml-auto font-mono font-bold text-[#003120] shrink-0">
+                  <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 p-2.5 bg-[#f2f3ff] rounded-lg text-[12px] text-[#131b2e] border border-[#dae2fd]/60 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="material-symbols-outlined text-[#003120] text-[18px] shrink-0">
+                        verified
+                      </span>
+                      <span className="font-medium min-w-0 break-words text-[12px] leading-snug">{scheme.matchReason}</span>
+                    </div>
+                    <span className="ml-auto font-mono font-bold text-[#003120] shrink-0 text-[11px] sm:text-[12px] whitespace-nowrap">
                       {scheme.matchScore}% Match
                     </span>
                   </div>
 
                   {/* Document Readiness Checklist */}
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[11px] uppercase tracking-wider text-[#757682] font-semibold mb-1.5 block">
                       Mandatory Documents &amp; Eligibility Proof:
                     </span>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5 min-w-0">
                       {scheme.mandatoryDocuments.map((doc, idx) => (
                         <span
                           key={idx}
@@ -621,7 +641,7 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
                               : 'bg-[#ffdcc3]/40 text-[#904d00] border border-[#ffdcc3]'
                           }`}
                         >
-                          <span className="material-symbols-outlined text-[14px]">
+                          <span className="material-symbols-outlined text-[14px] shrink-0">
                             {doc.ready ? 'check' : 'pending'}
                           </span>
                           <span>{doc.name}</span>
@@ -632,21 +652,21 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
                 </div>
 
                 {/* Card Footer Actions */}
-                <div className="bg-[#faf8ff] px-4 py-3 border-t border-[#eaedff] flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-[12px] text-[#444651]">
-                    <span className="material-symbols-outlined text-[16px] text-[#ba1a1a]">
+                <div className="bg-[#faf8ff] px-3.5 sm:px-4 py-3 border-t border-[#eaedff] flex flex-wrap items-center justify-between gap-2.5 min-w-0">
+                  <div className="flex items-center gap-1.5 text-[12px] text-[#444651] min-w-0">
+                    <span className="material-symbols-outlined text-[16px] text-[#ba1a1a] shrink-0">
                       event
                     </span>
-                    <span>
-                      Application Deadline: <strong>{scheme.deadline}</strong>
+                    <span className="truncate">
+                      Deadline: <strong>{scheme.deadline}</strong>
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
                     <button
                       type="button"
                       onClick={() => setActiveQrScheme(scheme)}
-                      className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#eaedff] text-[#00236f] text-[12px] font-semibold border border-[#dae2fd] transition-colors flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#eaedff] text-[#00236f] text-[12px] font-semibold border border-[#dae2fd] transition-colors flex items-center gap-1 cursor-pointer shrink-0"
                       title="Generate QR code PNG for this scheme portal"
                     >
                       <span className="material-symbols-outlined text-[16px]">
@@ -658,22 +678,22 @@ export const SchemeFinderView: React.FC<SchemeFinderViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleDownloadChecklist(scheme)}
-                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-[#eaedff] text-[#00236f] text-[12px] font-semibold border border-[#dae2fd] transition-colors flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-white hover:bg-[#eaedff] text-[#00236f] text-[12px] font-semibold border border-[#dae2fd] transition-colors flex items-center gap-1 cursor-pointer shrink-0"
                     >
                       <span className="material-symbols-outlined text-[16px]">
                         checklist
                       </span>
-                      <span>Download Checklist PDF</span>
+                      <span className="hidden sm:inline">Download</span> Checklist PDF
                     </button>
 
                     <a
                       href={scheme.portalUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-4 py-1.5 rounded-lg bg-[#00236f] hover:bg-[#1e3a8a] text-white text-[12px] font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      className="px-3 sm:px-4 py-1.5 rounded-lg bg-[#00236f] hover:bg-[#1e3a8a] text-white text-[12px] font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                     >
-                      <span>Open {scheme.portalName}</span>
-                      <span className="material-symbols-outlined text-[15px]">
+                      <span className="max-w-[130px] sm:max-w-none truncate">Open {scheme.portalName}</span>
+                      <span className="material-symbols-outlined text-[15px] shrink-0">
                         open_in_new
                       </span>
                     </a>
