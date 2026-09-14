@@ -22,6 +22,7 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
   const [fgColor, setFgColor] = useState<string>('#00236f');
   const [errorCorrection, setErrorCorrection] = useState<'L' | 'M' | 'Q' | 'H'>('H');
   const [includeFrame, setIncludeFrame] = useState<boolean>(true);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Sync state when props change or modal opens
@@ -29,6 +30,7 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
     if (isOpen) {
       setQrText(defaultText || 'https://ssc.gov.in');
       setQrTitle(defaultTitle || 'Portal QR Code');
+      setShowAdvanced(false);
     }
   }, [defaultText, defaultTitle, isOpen]);
 
@@ -55,7 +57,7 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
     }
   }, [isOpen]);
 
-  // Generate QR Canvas
+  // Generate QR Canvas with controlled dimensions
   useEffect(() => {
     if (!isOpen) return;
     const canvas = canvasRef.current;
@@ -65,14 +67,25 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
     if (!payload) payload = 'https://webodocx.gov.in';
 
     QRCode.toCanvas(canvas, payload, {
-      width: 512,
-      margin: 2,
+      width: 400,
+      margin: 1,
       errorCorrectionLevel: errorCorrection,
       color: {
         dark: fgColor,
         light: '#ffffff',
       },
-    }).catch((err) => console.error('Quick QR generation failed', err));
+    })
+      .then(() => {
+        if (canvas) {
+          // Explicitly reset inline styles set by qrcode library so it stays bounded inside parent
+          canvas.style.width = '100%';
+          canvas.style.height = '100%';
+          canvas.style.maxWidth = '100%';
+          canvas.style.maxHeight = '100%';
+          canvas.style.objectFit = 'contain';
+        }
+      })
+      .catch((err) => console.error('Quick QR generation failed', err));
   }, [qrText, fgColor, errorCorrection, isOpen]);
 
   if (!isOpen) return null;
@@ -197,7 +210,7 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
       aria-labelledby="qr-modal-title"
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-[#eaedff] dark:border-slate-800 w-full max-w-3xl lg:max-w-4xl max-h-[92vh] flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200"
+        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-[#eaedff] dark:border-slate-800 w-full max-w-2xl lg:max-w-3xl max-h-[90vh] flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sticky Header with Always Visible Close Button */}
@@ -232,38 +245,45 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Content Body - 2 Column Layout */}
+        {/* Content Body - Perfectly Balanced Without Scrolling */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 text-slate-800 dark:text-slate-200">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Generous Full-Size QR Code Card */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+            {/* Left Column: Focused, Prominent QR Code Box */}
             <div className="md:col-span-5 flex flex-col items-center">
-              <div className="w-full bg-[#f8f9ff] dark:bg-slate-800/60 p-5 rounded-2xl border border-[#dae2fd] dark:border-slate-700 flex flex-col items-center shadow-xs">
-                {/* QR Canvas Box */}
-                <div className="p-4 bg-white rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center">
+              <div className="w-full bg-[#f8f9ff] dark:bg-slate-800/60 p-4 sm:p-5 rounded-2xl border border-[#dae2fd] dark:border-slate-700 flex flex-col items-center shadow-xs">
+                {/* QR Canvas Box - Rigidly bounded container */}
+                <div className="w-52 h-52 sm:w-56 sm:h-56 bg-white rounded-xl shadow-xs border border-slate-200 dark:border-slate-700 p-2.5 flex items-center justify-center overflow-hidden shrink-0">
                   <canvas
                     ref={canvasRef}
-                    className="w-52 h-52 sm:w-56 sm:h-56 object-contain"
+                    className="max-w-full max-h-full object-contain block"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                    }}
                   />
                 </div>
 
                 <div className="mt-3 flex items-center gap-1.5 text-[12px] font-semibold text-slate-600 dark:text-slate-300">
-                  <span className="material-symbols-outlined text-[17px] text-[#00236f] dark:text-indigo-400">
+                  <span className="material-symbols-outlined text-[16px] text-[#00236f] dark:text-indigo-400">
                     photo_camera
                   </span>
                   <span>Scan with Phone Camera</span>
                 </div>
 
-                {/* Direct Action Pills under QR */}
-                <div className="w-full mt-4 flex flex-col gap-2">
+                {/* Direct Action Buttons under QR */}
+                <div className="w-full mt-3 flex flex-col gap-2">
                   {isUrl && (
                     <a
                       href={qrText}
                       target="_blank"
                       rel="noreferrer"
-                      className="w-full py-2.5 px-3 rounded-xl bg-[#00236f] hover:bg-[#1e3a8a] dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-[12.5px] font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                      className="w-full py-2 px-3 rounded-xl bg-[#00236f] hover:bg-[#1e3a8a] dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-[12px] font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-                      <span>Open Website in Browser</span>
+                      <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                      <span>Open Website</span>
                     </a>
                   )}
 
@@ -271,17 +291,17 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
                     <button
                       type="button"
                       onClick={handleCopyText}
-                      className="py-2 px-2.5 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[11.5px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      className="py-1.5 px-2 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[15px]">link</span>
+                      <span className="material-symbols-outlined text-[14px]">link</span>
                       <span>Copy Link</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleCopyImage}
-                      className="py-2 px-2.5 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[11.5px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      className="py-1.5 px-2 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[15px]">content_copy</span>
+                      <span className="material-symbols-outlined text-[14px]">content_copy</span>
                       <span>Copy QR</span>
                     </button>
                   </div>
@@ -289,38 +309,32 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
               </div>
             </div>
 
-            {/* Right Column: Portal Details & Customization Options */}
-            <div className="md:col-span-7 flex flex-col gap-4">
-              {/* Portal URL Info Banner */}
-              {isUrl && (
-                <div className="p-3.5 rounded-xl bg-[#eef2ff] dark:bg-indigo-950/40 border border-[#dbeafe] dark:border-indigo-900/60 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wide">
-                      Target Portal URL
-                    </span>
-                    <p className="text-[13px] font-mono text-[#00236f] dark:text-indigo-300 truncate font-semibold">
-                      {qrText}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyText}
-                    className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer shrink-0"
-                    title="Copy URL"
-                  >
-                    <span className="material-symbols-outlined text-[17px]">content_copy</span>
-                  </button>
+            {/* Right Column: Portal Details & Appearance */}
+            <div className="md:col-span-7 flex flex-col gap-3.5">
+              {/* Target Portal URL Display */}
+              <div className="p-3 rounded-xl bg-[#eef2ff] dark:bg-indigo-950/40 border border-[#dbeafe] dark:border-indigo-900/60 flex items-start justify-between gap-2.5">
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
+                    Official Portal URL
+                  </span>
+                  <p className="text-[12.5px] font-mono text-[#00236f] dark:text-indigo-300 break-all font-semibold select-all mt-0.5">
+                    {qrText}
+                  </p>
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={handleCopyText}
+                  className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer shrink-0 mt-0.5"
+                  title="Copy URL"
+                >
+                  <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                </button>
+              </div>
 
               {/* QR Customization Panel */}
-              <div className="p-4 rounded-xl bg-[#f8f9ff] dark:bg-slate-800/40 border border-[#dae2fd] dark:border-slate-700 flex flex-col gap-3">
-                <span className="text-[12px] font-bold text-[#131b2e] dark:text-slate-200 uppercase tracking-wider">
-                  QR Customization
-                </span>
-
+              <div className="p-3.5 rounded-xl bg-[#f8f9ff] dark:bg-slate-800/40 border border-[#dae2fd] dark:border-slate-700 flex flex-col gap-2.5">
                 {/* Color Palette */}
-                <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">
                     Theme Color:
                   </span>
@@ -337,7 +351,7 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
                         type="button"
                         onClick={() => setFgColor(color.hex)}
                         title={color.name}
-                        className={`w-7 h-7 rounded-full transition-transform cursor-pointer border-2 ${
+                        className={`w-6 h-6 rounded-full transition-transform cursor-pointer border-2 ${
                           fgColor === color.hex
                             ? 'border-slate-900 dark:border-white ring-2 ring-indigo-400 scale-110'
                             : 'border-transparent hover:scale-105'
@@ -349,9 +363,9 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
                 </div>
 
                 {/* Error Correction / Quality */}
-                <div className="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
                   <span className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">
-                    Scan Reliability:
+                    Scan Quality:
                   </span>
                   <div className="flex items-center gap-1.5">
                     {(['M', 'Q', 'H'] as const).map((level) => (
@@ -359,20 +373,20 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
                         key={level}
                         type="button"
                         onClick={() => setErrorCorrection(level)}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border ${
+                        className={`px-2.5 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer border ${
                           errorCorrection === level
                             ? 'bg-[#00236f] dark:bg-indigo-600 text-white border-transparent shadow-xs'
                             : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50'
                         }`}
                       >
-                        {level === 'M' ? 'Standard (M)' : level === 'Q' ? 'High (Q)' : 'Ultra (H)'}
+                        {level === 'M' ? 'Standard' : level === 'Q' ? 'High' : 'Ultra (H)'}
                       </button>
                     ))}
                   </div>
                 </div>
 
                 {/* Frame checkbox */}
-                <label className="flex items-center gap-2 cursor-pointer select-none pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                <label className="flex items-center gap-2 cursor-pointer select-none pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
                   <input
                     type="checkbox"
                     checked={includeFrame}
@@ -380,83 +394,78 @@ export const QuickQrModal: React.FC<QuickQrModalProps> = ({
                     className="w-4 h-4 rounded text-[#00236f] focus:ring-[#00236f]"
                   />
                   <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">
-                    Include printable title &amp; verified frame on download
+                    Include printable title &amp; official border on download
                   </span>
                 </label>
               </div>
 
-              {/* Editable Fields */}
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[12px] font-bold text-slate-700 dark:text-slate-300">
-                    Target URL / Website Address
-                  </label>
-                  <input
-                    type="text"
-                    value={qrText}
-                    onChange={(e) => setQrText(e.target.value)}
-                    placeholder="https://official-portal.gov.in"
-                    className="w-full h-10 px-3 bg-[#f8f9ff] dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[13px] rounded-xl border border-[#dae2fd] dark:border-slate-700 focus:outline-none focus:border-[#00236f] dark:focus:border-indigo-400 font-mono"
-                  />
-                </div>
+              {/* Collapsible Edit URL / Presets Section */}
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-[12px] font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-between cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">edit_note</span>
+                    <span>Edit URL or Scheme Name</span>
+                  </div>
+                  <span className="material-symbols-outlined text-[18px]">
+                    {showAdvanced ? 'expand_less' : 'expand_more'}
+                  </span>
+                </button>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[12px] font-bold text-slate-700 dark:text-slate-300">
-                    Card Title / Scheme Name
-                  </label>
-                  <input
-                    type="text"
-                    value={qrTitle}
-                    onChange={(e) => setQrTitle(e.target.value)}
-                    placeholder="e.g. PM Kisan Portal"
-                    className="w-full h-10 px-3 bg-[#f8f9ff] dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[13px] rounded-xl border border-[#dae2fd] dark:border-slate-700 focus:outline-none focus:border-[#00236f] dark:focus:border-indigo-400"
-                  />
-                </div>
+                {showAdvanced && (
+                  <div className="p-3.5 bg-white dark:bg-slate-900 flex flex-col gap-2.5 border-t border-slate-200 dark:border-slate-700">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                        Target URL
+                      </label>
+                      <input
+                        type="text"
+                        value={qrText}
+                        onChange={(e) => setQrText(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full h-8 px-2.5 bg-[#f8f9ff] dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[12px] rounded-lg border border-[#dae2fd] dark:border-slate-700 focus:outline-none focus:border-[#00236f] font-mono"
+                      />
+                    </div>
 
-                {/* Quick Presets */}
-                <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                  <span className="text-[11.5px] font-bold text-slate-500 dark:text-slate-400">Presets:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQrText('https://ssc.gov.in');
-                      setQrTitle('SSC Official Portal');
-                    }}
-                    className="px-2.5 py-1 rounded-md bg-[#f2f3ff] dark:bg-slate-800 text-[#00236f] dark:text-indigo-300 text-[11px] font-semibold border border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff] dark:hover:bg-slate-700 cursor-pointer"
-                  >
-                    SSC Portal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQrText('https://upsconline.nic.in');
-                      setQrTitle('UPSC Online Portal');
-                    }}
-                    className="px-2.5 py-1 rounded-md bg-[#f2f3ff] dark:bg-slate-800 text-[#00236f] dark:text-indigo-300 text-[11px] font-semibold border border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff] dark:hover:bg-slate-700 cursor-pointer"
-                  >
-                    UPSC Portal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQrText('https://www.digilocker.gov.in');
-                      setQrTitle('DigiLocker Verification');
-                    }}
-                    className="px-2.5 py-1 rounded-md bg-[#f2f3ff] dark:bg-slate-800 text-[#00236f] dark:text-indigo-300 text-[11px] font-semibold border border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff] dark:hover:bg-slate-700 cursor-pointer"
-                  >
-                    DigiLocker
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQrText('https://pmkisan.gov.in');
-                      setQrTitle('PM Kisan Samman Nidhi');
-                    }}
-                    className="px-2.5 py-1 rounded-md bg-[#f2f3ff] dark:bg-slate-800 text-[#00236f] dark:text-indigo-300 text-[11px] font-semibold border border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff] dark:hover:bg-slate-700 cursor-pointer"
-                  >
-                    PM Kisan
-                  </button>
-                </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                        Scheme / Card Label
+                      </label>
+                      <input
+                        type="text"
+                        value={qrTitle}
+                        onChange={(e) => setQrTitle(e.target.value)}
+                        placeholder="e.g. PM Vishwakarma Scheme"
+                        className="w-full h-8 px-2.5 bg-[#f8f9ff] dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[12px] rounded-lg border border-[#dae2fd] dark:border-slate-700 focus:outline-none focus:border-[#00236f]"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[10.5px] font-bold text-slate-500">Presets:</span>
+                      {[
+                        { name: 'SSC', url: 'https://ssc.gov.in', title: 'SSC Official Portal' },
+                        { name: 'UPSC', url: 'https://upsconline.nic.in', title: 'UPSC Online Portal' },
+                        { name: 'DigiLocker', url: 'https://www.digilocker.gov.in', title: 'DigiLocker' },
+                        { name: 'PM Kisan', url: 'https://pmkisan.gov.in', title: 'PM Kisan Nidhi' },
+                      ].map((preset) => (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => {
+                            setQrText(preset.url);
+                            setQrTitle(preset.title);
+                          }}
+                          className="px-2 py-0.5 rounded bg-[#f2f3ff] dark:bg-slate-800 text-[#00236f] dark:text-indigo-300 text-[10.5px] font-semibold border border-[#dae2fd] dark:border-slate-700 hover:bg-[#e8ebff] cursor-pointer"
+                        >
+                          {preset.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
